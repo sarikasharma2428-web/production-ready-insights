@@ -176,6 +176,44 @@ export type Database = {
           },
         ]
       }
+      metrics: {
+        Row: {
+          created_at: string
+          id: string
+          metric_name: string
+          recorded_at: string
+          service_id: string | null
+          unit: string | null
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metric_name: string
+          recorded_at?: string
+          service_id?: string | null
+          unit?: string | null
+          value: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metric_name?: string
+          recorded_at?: string
+          service_id?: string | null
+          unit?: string | null
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metrics_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
