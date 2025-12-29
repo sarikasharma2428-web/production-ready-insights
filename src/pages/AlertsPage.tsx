@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAlerts } from "@/hooks/useAlerts";
 import { useServices } from "@/hooks/useServices";
+import { useUserRole } from "@/hooks/useUserRole";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,18 +21,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertTriangle, Bell, BellOff, Check, RefreshCw } from "lucide-react";
+import { AlertTriangle, Bell, BellOff, Check, RefreshCw, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
 export default function AlertsPage() {
   const { alerts, loading, acknowledgeAlert, silenceAlert, refetch, activeAlerts, criticalCount, warningCount } = useAlerts();
   const { services } = useServices();
+  const { canEdit } = useUserRole();
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const filteredAlerts = alerts.filter((alert) => {
-    if (severityFilter !== "all" && alert.severity !== severityFilter) return false;
+    // Normalize severity for comparison (handle both cases)
+    const alertSeverity = alert.severity?.toUpperCase();
+    if (severityFilter !== "all" && alertSeverity !== severityFilter.toUpperCase()) return false;
     if (statusFilter === "active" && !alert.is_active) return false;
     if (statusFilter === "acknowledged" && !alert.acknowledged_at) return false;
     if (statusFilter === "silenced" && !alert.silenced_until) return false;
@@ -39,30 +44,38 @@ export default function AlertsPage() {
   });
 
   const handleAcknowledge = async (id: string) => {
+    setActionLoading(id);
     try {
       await acknowledgeAlert(id);
       toast.success("Alert acknowledged");
     } catch (error) {
       toast.error("Failed to acknowledge alert");
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleSilence = async (id: string) => {
+    setActionLoading(`silence-${id}`);
     try {
       await silenceAlert(id, 60);
       toast.success("Alert silenced for 1 hour");
     } catch (error) {
       toast.error("Failed to silence alert");
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const getSeverityBadge = (severity: string) => {
+    // Normalize to uppercase for consistent display
+    const normalizedSeverity = severity?.toUpperCase() || 'INFO';
     const variants: Record<string, "destructive" | "secondary" | "outline"> = {
       CRITICAL: "destructive",
       WARNING: "secondary",
       INFO: "outline",
     };
-    return <Badge variant={variants[severity] || "outline"}>{severity}</Badge>;
+    return <Badge variant={variants[normalizedSeverity] || "outline"}>{normalizedSeverity}</Badge>;
   };
 
   const getServiceName = (serviceId: string | null) => {
@@ -81,8 +94,8 @@ export default function AlertsPage() {
               Monitor and manage system alerts
             </p>
           </div>
-          <Button variant="outline" size="icon" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4" />
+          <Button variant="outline" size="icon" onClick={() => refetch()} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
 
@@ -198,22 +211,32 @@ export default function AlertsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        {!alert.acknowledged_at && alert.is_active && (
+                        {canEdit && !alert.acknowledged_at && alert.is_active && (
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleAcknowledge(alert.id)}
+                            disabled={actionLoading === alert.id}
                           >
-                            <Check className="h-4 w-4" />
+                            {actionLoading === alert.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Check className="h-4 w-4" />
+                            )}
                           </Button>
                         )}
-                        {alert.is_active && (
+                        {canEdit && alert.is_active && (
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleSilence(alert.id)}
+                            disabled={actionLoading === `silence-${alert.id}`}
                           >
-                            <BellOff className="h-4 w-4" />
+                            {actionLoading === `silence-${alert.id}` ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <BellOff className="h-4 w-4" />
+                            )}
                           </Button>
                         )}
                       </div>

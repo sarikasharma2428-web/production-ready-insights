@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { backendApi } from '@/lib/backendApi';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -35,6 +35,8 @@ export function useAlerts(options?: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [useBackend, setUseBackend] = useState(false);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchFromBackend = useCallback(async () => {
     try {
@@ -44,9 +46,10 @@ export function useAlerts(options?: {
         service_id: serviceId
       });
 
-      // Transform to match Alert interface
       const transformedAlerts: Alert[] = (data as Alert[]).map(alert => ({
         ...alert,
+        // Normalize severity to uppercase
+        severity: alert.severity?.toUpperCase() || 'INFO',
         created_at: alert.fired_at,
         services: null
       }));
@@ -54,8 +57,7 @@ export function useAlerts(options?: {
       setAlerts(transformedAlerts);
       setError(null);
       return true;
-    } catch (err) {
-      console.warn('Backend alerts fetch failed:', err);
+    } catch {
       return false;
     }
   }, [severity, acknowledged, serviceId]);
@@ -87,12 +89,12 @@ export function useAlerts(options?: {
 
       if (supaError) throw supaError;
       
-      // Map severity to lowercase for frontend
+      // Normalize severity to uppercase for consistency
       const mappedAlerts = (data || []).map(a => ({
         ...a,
         name: a.name || a.title,
         message: a.message || a.description || '',
-        severity: a.severity?.toLowerCase() || 'info',
+        severity: a.severity?.toUpperCase() || 'INFO',
         threshold: Number(a.threshold) || 0,
         current_value: Number(a.current_value) || 0,
       }));
@@ -100,7 +102,6 @@ export function useAlerts(options?: {
       setAlerts(mappedAlerts);
       setError(null);
     } catch (err) {
-      console.error('Error fetching alerts:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch alerts');
     }
   }, [severity, acknowledged, serviceId]);
@@ -125,11 +126,9 @@ export function useAlerts(options?: {
   }, [fetchFromBackend, fetchFromSupabase]);
 
   useEffect(() => {
-    let channel: RealtimeChannel | null = null;
-
     fetchAlerts();
 
-    channel = supabase
+    channelRef.current = supabase
       .channel('alerts-realtime')
       .on(
         'postgres_changes',
@@ -141,11 +140,17 @@ export function useAlerts(options?: {
       .subscribe();
 
     // Poll more frequently for alerts
-    const pollInterval = setInterval(fetchAlerts, 15000);
+    pollIntervalRef.current = setInterval(fetchAlerts, 15000);
 
     return () => {
-      if (channel) supabase.removeChannel(channel);
-      clearInterval(pollInterval);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
     };
   }, [fetchAlerts]);
 
@@ -158,12 +163,14 @@ export function useAlerts(options?: {
     threshold: number;
     current_value: number;
   }) => {
+    const normalizedSeverity = alert.severity.toUpperCase() as 'CRITICAL' | 'WARNING' | 'INFO';
+    
     const { data, error } = await supabase
       .from('alerts')
       .insert([{
         title: alert.name,
         name: alert.name,
-        severity: alert.severity.toUpperCase() as 'CRITICAL' | 'WARNING' | 'INFO',
+        severity: normalizedSeverity,
         service_id: alert.service_id || null,
         description: alert.message,
         message: alert.message,
@@ -211,10 +218,10 @@ export function useAlerts(options?: {
     if (error) throw error;
   };
 
-  // Stats helpers
+  // Stats helpers - use uppercase for comparison
   const activeAlerts = alerts.filter(a => !a.acknowledged_at && (!a.silenced_until || new Date(a.silenced_until) < new Date()));
-  const criticalCount = activeAlerts.filter(a => a.severity === 'critical').length;
-  const warningCount = activeAlerts.filter(a => a.severity === 'warning').length;
+  const criticalCount = activeAlerts.filter(a => a.severity === 'CRITICAL').length;
+  const warningCount = activeAlerts.filter(a => a.severity === 'WARNING').length;
 
   return {
     alerts,
