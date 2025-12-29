@@ -11,6 +11,7 @@ import IncidentsPage from "@/pages/IncidentsPage";
 import SLOsPage from "@/pages/SLOsPage";
 import MetricsPage from "@/pages/MetricsPage";
 import LogsPage from "@/pages/LogsPage";
+import TestPanelPage from "@/pages/TestPanelPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/NotFound";
 
@@ -49,6 +50,7 @@ const App = () => (
           <Route path="/slos" element={<ProtectedRoute><SLOsPage /></ProtectedRoute>} />
           <Route path="/metrics" element={<ProtectedRoute><MetricsPage /></ProtectedRoute>} />
           <Route path="/logs" element={<ProtectedRoute><LogsPage /></ProtectedRoute>} />
+          <Route path="/test-panel" element={<ProtectedRoute><TestPanelPage /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
