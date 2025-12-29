@@ -1,1 +1,22 @@
 project_id = "gklmbembffpoicojngzj"
+
+[functions.services]
+verify_jwt = false
+
+[functions.metrics]
+verify_jwt = false
+
+[functions.logs]
+verify_jwt = false
+
+[functions.alerts]
+verify_jwt = false
+
+[functions.incidents]
+verify_jwt = false
+
+[functions.slos]
+verify_jwt = false
+
+[functions.health]
+verify_jwt = false
