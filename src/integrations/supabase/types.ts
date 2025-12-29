@@ -81,7 +81,9 @@ export type Database = {
       }
       incidents: {
         Row: {
+          acknowledged_at: string | null
           created_at: string
+          created_by: string | null
           description: string | null
           id: string
           incident_number: string
@@ -92,9 +94,12 @@ export type Database = {
           status: Database["public"]["Enums"]["incident_status"]
           title: string
           triggered_by: string | null
+          updated_at: string | null
         }
         Insert: {
+          acknowledged_at?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           incident_number: string
@@ -105,9 +110,12 @@ export type Database = {
           status?: Database["public"]["Enums"]["incident_status"]
           title: string
           triggered_by?: string | null
+          updated_at?: string | null
         }
         Update: {
+          acknowledged_at?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           incident_number?: string
@@ -118,6 +126,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["incident_status"]
           title?: string
           triggered_by?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -258,6 +267,8 @@ export type Database = {
         Row: {
           created_at: string
           current_availability: number
+          current_latency_p99: number | null
+          error_budget: number | null
           error_budget_consumed: number | null
           error_budget_total: number
           id: string
@@ -266,13 +277,17 @@ export type Database = {
           latency_current: number | null
           latency_target: number
           name: string
+          period: string | null
           service_id: string | null
           target_availability: number
+          target_latency_p99: number | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           current_availability?: number
+          current_latency_p99?: number | null
+          error_budget?: number | null
           error_budget_consumed?: number | null
           error_budget_total?: number
           id?: string
@@ -281,13 +296,17 @@ export type Database = {
           latency_current?: number | null
           latency_target?: number
           name: string
+          period?: string | null
           service_id?: string | null
           target_availability?: number
+          target_latency_p99?: number | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           current_availability?: number
+          current_latency_p99?: number | null
+          error_budget?: number | null
           error_budget_consumed?: number | null
           error_budget_total?: number
           id?: string
@@ -296,8 +315,10 @@ export type Database = {
           latency_current?: number | null
           latency_target?: number
           name?: string
+          period?: string | null
           service_id?: string | null
           target_availability?: number
+          target_latency_p99?: number | null
           updated_at?: string
         }
         Relationships: [
