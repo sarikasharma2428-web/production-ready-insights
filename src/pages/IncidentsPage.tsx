@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useIncidents } from "@/hooks/useIncidents";
 import { useServices } from "@/hooks/useServices";
+import { useUserRole } from "@/hooks/useUserRole";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,17 +32,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Check, CheckCircle, Flame, Plus, RefreshCw, XCircle } from "lucide-react";
+import { Check, CheckCircle, Flame, Plus, RefreshCw, XCircle, Loader2 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
+import { incidentSchema } from "@/lib/validations";
 
 export default function IncidentsPage() {
   const { incidents, loading, createIncident, acknowledgeIncident, resolveIncident, refetch } = useIncidents();
   const { services } = useServices();
+  const { canCreate, canEdit } = useUserRole();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [newIncident, setNewIncident] = useState({
     title: "",
     description: "",
@@ -55,9 +60,30 @@ export default function IncidentsPage() {
     return true;
   });
 
+  const validateForm = (): boolean => {
+    setErrors({});
+    const result = incidentSchema.safeParse({
+      title: newIncident.title,
+      description: newIncident.description || undefined,
+      severity: newIncident.severity,
+      service_id: newIncident.service_id || undefined,
+    });
+    
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      result.error.errors.forEach((err) => {
+        const field = err.path[0] as string;
+        fieldErrors[field] = err.message;
+      });
+      setErrors(fieldErrors);
+      return false;
+    }
+    
+    return true;
+  };
+
   const handleCreateIncident = async () => {
-    if (!newIncident.title) {
-      toast.error("Title is required");
+    if (!validateForm()) {
       return;
     }
 
@@ -72,6 +98,7 @@ export default function IncidentsPage() {
       toast.success("Incident created");
       setIsDialogOpen(false);
       setNewIncident({ title: "", description: "", severity: "MEDIUM", service_id: "" });
+      setErrors({});
     } catch (error) {
       toast.error("Failed to create incident");
     } finally {
@@ -80,20 +107,26 @@ export default function IncidentsPage() {
   };
 
   const handleAcknowledge = async (id: string) => {
+    setActionLoading(`ack-${id}`);
     try {
       await acknowledgeIncident(id);
       toast.success("Incident acknowledged");
     } catch (error) {
       toast.error("Failed to acknowledge incident");
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleResolve = async (id: string) => {
+    setActionLoading(`resolve-${id}`);
     try {
       await resolveIncident(id);
       toast.success("Incident resolved");
     } catch (error) {
       toast.error("Failed to resolve incident");
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -141,96 +174,109 @@ export default function IncidentsPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="icon" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4" />
+            <Button variant="outline" size="icon" onClick={() => refetch()} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Incident
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New Incident</DialogTitle>
-                  <DialogDescription>
-                    Report a new incident for tracking
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="title">Title</Label>
-                    <Input
-                      id="title"
-                      placeholder="Database connection failure"
-                      value={newIncident.title}
-                      onChange={(e) =>
-                        setNewIncident({ ...newIncident, title: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="Describe the incident..."
-                      value={newIncident.description}
-                      onChange={(e) =>
-                        setNewIncident({ ...newIncident, description: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="severity">Severity</Label>
-                    <Select
-                      value={newIncident.severity}
-                      onValueChange={(value) =>
-                        setNewIncident({ ...newIncident, severity: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="LOW">Low</SelectItem>
-                        <SelectItem value="MEDIUM">Medium</SelectItem>
-                        <SelectItem value="HIGH">High</SelectItem>
-                        <SelectItem value="CRITICAL">Critical</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="service">Affected Service (optional)</Label>
-                    <Select
-                      value={newIncident.service_id}
-                      onValueChange={(value) =>
-                        setNewIncident({ ...newIncident, service_id: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select service" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {services.map((service) => (
-                          <SelectItem key={service.id} value={service.id}>
-                            {service.display_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancel
+            {canCreate && (
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Incident
                   </Button>
-                  <Button onClick={handleCreateIncident} disabled={isSubmitting}>
-                    {isSubmitting ? "Creating..." : "Create Incident"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create New Incident</DialogTitle>
+                    <DialogDescription>
+                      Report a new incident for tracking
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="title">Title</Label>
+                      <Input
+                        id="title"
+                        placeholder="Database connection failure"
+                        value={newIncident.title}
+                        onChange={(e) =>
+                          setNewIncident({ ...newIncident, title: e.target.value })
+                        }
+                        className={errors.title ? 'border-destructive' : ''}
+                      />
+                      {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        id="description"
+                        placeholder="Describe the incident..."
+                        value={newIncident.description}
+                        onChange={(e) =>
+                          setNewIncident({ ...newIncident, description: e.target.value })
+                        }
+                        className={errors.description ? 'border-destructive' : ''}
+                      />
+                      {errors.description && <p className="text-sm text-destructive">{errors.description}</p>}
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="severity">Severity</Label>
+                      <Select
+                        value={newIncident.severity}
+                        onValueChange={(value) =>
+                          setNewIncident({ ...newIncident, severity: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="LOW">Low</SelectItem>
+                          <SelectItem value="MEDIUM">Medium</SelectItem>
+                          <SelectItem value="HIGH">High</SelectItem>
+                          <SelectItem value="CRITICAL">Critical</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="service">Affected Service (optional)</Label>
+                      <Select
+                        value={newIncident.service_id}
+                        onValueChange={(value) =>
+                          setNewIncident({ ...newIncident, service_id: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select service" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {services.map((service) => (
+                            <SelectItem key={service.id} value={service.id}>
+                              {service.display_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleCreateIncident} disabled={isSubmitting}>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        "Create Incident"
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </div>
 
@@ -324,23 +370,33 @@ export default function IncidentsPage() {
                       {getStatusBadge(incident.status)}
                     </div>
                     <div className="flex gap-2">
-                      {incident.status === "OPEN" && (
+                      {canEdit && incident.status === "OPEN" && (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleAcknowledge(incident.id)}
+                          disabled={actionLoading === `ack-${incident.id}`}
                         >
-                          <Check className="h-4 w-4 mr-1" />
+                          {actionLoading === `ack-${incident.id}` ? (
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4 mr-1" />
+                          )}
                           Acknowledge
                         </Button>
                       )}
-                      {incident.status !== "RESOLVED" && (
+                      {canEdit && incident.status !== "RESOLVED" && (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleResolve(incident.id)}
+                          disabled={actionLoading === `resolve-${incident.id}`}
                         >
-                          <CheckCircle className="h-4 w-4 mr-1" />
+                          {actionLoading === `resolve-${incident.id}` ? (
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          ) : (
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                          )}
                           Resolve
                         </Button>
                       )}

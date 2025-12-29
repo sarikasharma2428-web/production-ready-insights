@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
+import { signInSchema, signUpSchema } from "@/lib/validations";
+import { toast } from "sonner";
 
 export default function AuthPage() {
   const { user, loading: authLoading, signIn, signUp } = useAuth();
@@ -14,9 +16,8 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState("");
 
   if (authLoading) {
     return (
@@ -30,24 +31,62 @@ export default function AuthPage() {
     return <Navigate to="/" replace />;
   }
 
+  const validateForm = (): boolean => {
+    setErrors({});
+    
+    const schema = isSignUp ? signUpSchema : signInSchema;
+    const data = isSignUp 
+      ? { email, password, fullName: fullName || undefined }
+      : { email, password };
+    
+    const result = schema.safeParse(data);
+    
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      result.error.errors.forEach((err) => {
+        const field = err.path[0] as string;
+        fieldErrors[field] = err.message;
+      });
+      setErrors(fieldErrors);
+      return false;
+    }
+    
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
     setLoading(true);
-    setError("");
-    setSuccess("");
+    setErrors({});
 
     if (isSignUp) {
       const result = await signUp(email, password, fullName);
       if (result.error) {
-        setError(result.error.message);
+        if (result.error.message.includes("already registered")) {
+          setErrors({ email: "This email is already registered" });
+        } else {
+          setErrors({ form: result.error.message });
+        }
       } else {
-        setSuccess("Account created successfully! You can now sign in.");
+        toast.success("Account created successfully! You can now sign in.");
         setIsSignUp(false);
+        setPassword("");
       }
     } else {
       const result = await signIn(email, password);
       if (result.error) {
-        setError(result.error.message);
+        if (result.error.message.includes("Invalid login")) {
+          setErrors({ form: "Invalid email or password" });
+        } else {
+          setErrors({ form: result.error.message });
+        }
+      } else {
+        toast.success("Welcome back!");
       }
     }
 
@@ -91,8 +130,11 @@ export default function AuthPage() {
                   placeholder="John Doe"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="h-11"
+                  className={`h-11 ${errors.fullName ? 'border-destructive' : ''}`}
                 />
+                {errors.fullName && (
+                  <p className="text-sm text-destructive">{errors.fullName}</p>
+                )}
               </div>
             )}
 
@@ -104,9 +146,11 @@ export default function AuthPage() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
-                className="h-11"
+                className={`h-11 ${errors.email ? 'border-destructive' : ''}`}
               />
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -118,9 +162,7 @@ export default function AuthPage() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  className="h-11 pr-10"
+                  className={`h-11 pr-10 ${errors.password ? 'border-destructive' : ''}`}
                 />
                 <button
                   type="button"
@@ -130,17 +172,14 @@ export default function AuthPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {errors.password && (
+                <p className="text-sm text-destructive">{errors.password}</p>
+              )}
             </div>
 
-            {error && (
+            {errors.form && (
               <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3">
-                <p className="text-sm text-destructive">{error}</p>
-              </div>
-            )}
-
-            {success && (
-              <div className="rounded-lg bg-status-healthy/10 border border-status-healthy/20 p-3">
-                <p className="text-sm text-status-healthy">{success}</p>
+                <p className="text-sm text-destructive">{errors.form}</p>
               </div>
             )}
 
@@ -165,8 +204,7 @@ export default function AuthPage() {
             <button
               onClick={() => {
                 setIsSignUp(!isSignUp);
-                setError("");
-                setSuccess("");
+                setErrors({});
               }}
               className="ml-1 font-medium text-primary hover:underline"
             >

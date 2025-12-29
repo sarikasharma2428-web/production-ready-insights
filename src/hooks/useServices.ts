@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { backendApi } from '@/lib/backendApi';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -21,11 +21,20 @@ interface Service {
   updated_at: string;
 }
 
+interface AddServiceParams {
+  name: string;
+  display_name?: string;
+  description?: string;
+  status?: string;
+}
+
 export function useServices() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [useBackend, setUseBackend] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   const fetchFromBackend = useCallback(async () => {
     try {
@@ -33,8 +42,7 @@ export function useServices() {
       setServices(data as Service[]);
       setError(null);
       return true;
-    } catch (err) {
-      console.warn('Backend fetch failed, falling back to Supabase:', err);
+    } catch {
       return false;
     }
   }, []);
@@ -59,7 +67,6 @@ export function useServices() {
       })));
       setError(null);
     } catch (err) {
-      console.error('Error fetching services:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch services');
     }
   }, []);
@@ -67,7 +74,6 @@ export function useServices() {
   const fetchServices = useCallback(async () => {
     setLoading(true);
 
-    // Check if backend is available
     await backendApi.waitForCheck();
 
     if (backendApi.isBackendAvailable()) {
@@ -79,25 +85,21 @@ export function useServices() {
       }
     }
 
-    // Fallback to Supabase
     setUseBackend(false);
     await fetchFromSupabase();
     setLoading(false);
   }, [fetchFromBackend, fetchFromSupabase]);
 
   useEffect(() => {
-    let channel: RealtimeChannel | null = null;
-
     fetchServices();
 
     // Set up real-time subscription (Supabase)
-    channel = supabase
+    channelRef.current = supabase
       .channel('services-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'services' },
         (payload) => {
-          console.log('Services realtime update:', payload);
           if (payload.eventType === 'INSERT') {
             setServices(prev => [...prev, payload.new as Service]);
           } else if (payload.eventType === 'UPDATE') {
@@ -111,16 +113,36 @@ export function useServices() {
       )
       .subscribe();
 
-    // Polling for backend data
-    const pollInterval = useBackend ? setInterval(fetchServices, 30000) : null;
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [fetchServices]);
+
+  // Separate effect for polling when backend is used
+  useEffect(() => {
+    if (useBackend) {
+      pollIntervalRef.current = setInterval(fetchServices, 30000);
+    } else if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
 
     return () => {
-      if (channel) supabase.removeChannel(channel);
-      if (pollInterval) clearInterval(pollInterval);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
     };
-  }, [fetchServices, useBackend]);
+  }, [useBackend, fetchServices]);
 
-  const addService = async (service: { name: string; description?: string }) => {
+  const addService = async (service: AddServiceParams) => {
     if (useBackend && backendApi.isBackendAvailable()) {
       const data = await backendApi.createService(service);
       await fetchServices();
@@ -131,9 +153,9 @@ export function useServices() {
       .from('services')
       .insert([{ 
         name: service.name,
-        display_name: service.name,
-        description: service.description,
-        status: 'unknown',
+        display_name: service.display_name || service.name,
+        description: service.description || null,
+        status: service.status || 'unknown',
         uptime: 99.9,
         latency_p50: 0,
         latency_p99: 0,
