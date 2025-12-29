@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useUserRole } from "@/hooks/useUserRole";
+
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Server, 
@@ -20,10 +20,8 @@ import {
   Loader2,
   CheckCircle,
   RefreshCw,
-  Trash2,
-  ShieldAlert
+  Trash2
 } from "lucide-react";
-
 const TEST_SERVICES = [
   { name: "api-gateway", display_name: "API Gateway", description: "Main API gateway service" },
   { name: "auth-service", display_name: "Auth Service", description: "Authentication and authorization" },
@@ -39,36 +37,8 @@ const INCIDENT_SEVERITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 
 export default function TestPanelPage() {
   const { toast } = useToast();
-  const { isAdmin, loading: roleLoading } = useUserRole();
   const [loading, setLoading] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, string>>({});
-
-  // Admin-only access check
-  if (roleLoading) {
-    return (
-      <DashboardLayout>
-        <div className="p-6 flex items-center justify-center min-h-[400px]">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <DashboardLayout>
-        <div className="p-6">
-          <div className="text-center py-16 border rounded-lg">
-            <ShieldAlert className="h-12 w-12 mx-auto text-destructive mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
-            <p className="text-muted-foreground">
-              The Test Panel is restricted to administrators only.
-            </p>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
 
   // Service form state
   const [serviceName, setServiceName] = useState("");
