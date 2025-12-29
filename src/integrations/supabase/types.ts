@@ -20,11 +20,16 @@ export type Database = {
           created_at: string
           current_value: number | null
           description: string | null
+          fired_at: string | null
           id: string
           is_active: boolean | null
+          message: string | null
+          metric_name: string | null
+          name: string | null
           resolved_at: string | null
           service_id: string | null
           severity: Database["public"]["Enums"]["alert_severity"]
+          silenced_until: string | null
           threshold: number | null
           title: string
         }
@@ -33,11 +38,16 @@ export type Database = {
           created_at?: string
           current_value?: number | null
           description?: string | null
+          fired_at?: string | null
           id?: string
           is_active?: boolean | null
+          message?: string | null
+          metric_name?: string | null
+          name?: string | null
           resolved_at?: string | null
           service_id?: string | null
           severity?: Database["public"]["Enums"]["alert_severity"]
+          silenced_until?: string | null
           threshold?: number | null
           title: string
         }
@@ -46,11 +56,16 @@ export type Database = {
           created_at?: string
           current_value?: number | null
           description?: string | null
+          fired_at?: string | null
           id?: string
           is_active?: boolean | null
+          message?: string | null
+          metric_name?: string | null
+          name?: string | null
           resolved_at?: string | null
           service_id?: string | null
           severity?: Database["public"]["Enums"]["alert_severity"]
+          silenced_until?: string | null
           threshold?: number | null
           title?: string
         }
