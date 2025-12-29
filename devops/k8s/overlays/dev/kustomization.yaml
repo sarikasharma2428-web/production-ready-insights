@@ -1,0 +1,43 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: sre-dashboard
+
+resources:
+  - ../base
+
+namePrefix: dev-
+
+commonLabels:
+  environment: development
+
+replicas:
+  - name: frontend
+    count: 1
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+    target:
+      kind: HorizontalPodAutoscaler
+      name: frontend-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: dev-sre.example.com
+      - op: replace
+        path: /spec/rules/0/host
+        value: dev-sre.example.com
+    target:
+      kind: Ingress
+      name: sre-dashboard
+
+images:
+  - name: sre-dashboard/frontend
+    newTag: dev

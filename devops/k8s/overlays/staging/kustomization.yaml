@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: sre-dashboard
+
+resources:
+  - ../base
+
+namePrefix: staging-
+
+commonLabels:
+  environment: staging
+
+replicas:
+  - name: frontend
+    count: 2
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: staging-sre.example.com
+      - op: replace
+        path: /spec/rules/0/host
+        value: staging-sre.example.com
+    target:
+      kind: Ingress
+      name: sre-dashboard
+
+images:
+  - name: sre-dashboard/frontend
+    newTag: staging

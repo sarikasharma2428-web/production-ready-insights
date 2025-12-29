@@ -1,0 +1,86 @@
+# Alertmanager Configuration
+global:
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alertmanager@sre-dashboard.com'
+  smtp_auth_username: 'alertmanager@sre-dashboard.com'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  
+  # Slack configuration
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+  # PagerDuty configuration
+  # pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+
+# Templates
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Routing tree
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default-receiver'
+  
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical-receiver'
+      group_wait: 10s
+      repeat_interval: 1h
+    
+    # Warning alerts
+    - match:
+        severity: warning
+      receiver: 'warning-receiver'
+      group_wait: 1m
+      repeat_interval: 4h
+    
+    # SLO alerts
+    - match_re:
+        slo: .*
+      receiver: 'slo-receiver'
+      group_wait: 30s
+
+# Receivers
+receivers:
+  - name: 'default-receiver'
+    email_configs:
+      - to: 'sre-team@example.com'
+        send_resolved: true
+
+  - name: 'critical-receiver'
+    slack_configs:
+      - channel: '#sre-critical'
+        send_resolved: true
+        title: '{{ template "slack.title" . }}'
+        text: '{{ template "slack.text" . }}'
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+    # pagerduty_configs:
+    #   - service_key: '${PAGERDUTY_SERVICE_KEY}'
+    #     send_resolved: true
+
+  - name: 'warning-receiver'
+    slack_configs:
+      - channel: '#sre-warnings'
+        send_resolved: true
+        title: '{{ template "slack.title" . }}'
+        text: '{{ template "slack.text" . }}'
+
+  - name: 'slo-receiver'
+    slack_configs:
+      - channel: '#slo-alerts'
+        send_resolved: true
+        title: 'SLO Alert: {{ .CommonAnnotations.summary }}'
+        text: '{{ .CommonAnnotations.description }}'
+
+# Inhibition rules
+inhibit_rules:
+  # If critical is firing, suppress warning
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service']
