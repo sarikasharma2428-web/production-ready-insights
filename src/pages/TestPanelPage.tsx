@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-
+import { ReleaseValidation } from "@/components/dashboard/ReleaseValidation";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Server, 
@@ -20,7 +20,8 @@ import {
   Loader2,
   CheckCircle,
   RefreshCw,
-  Trash2
+  Trash2,
+  Shield
 } from "lucide-react";
 const TEST_SERVICES = [
   { name: "api-gateway", display_name: "API Gateway", description: "Main API gateway service" },
@@ -541,8 +542,9 @@ export default function TestPanelPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="services" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
+        <Tabs defaultValue="validation" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-7">
+            <TabsTrigger value="validation"><Shield className="h-4 w-4 mr-2" />Release</TabsTrigger>
             <TabsTrigger value="services"><Server className="h-4 w-4 mr-2" />Services</TabsTrigger>
             <TabsTrigger value="metrics"><Activity className="h-4 w-4 mr-2" />Metrics</TabsTrigger>
             <TabsTrigger value="logs"><FileText className="h-4 w-4 mr-2" />Logs</TabsTrigger>
@@ -550,6 +552,11 @@ export default function TestPanelPage() {
             <TabsTrigger value="incidents"><AlertTriangle className="h-4 w-4 mr-2" />Incidents</TabsTrigger>
             <TabsTrigger value="slos"><CheckCircle className="h-4 w-4 mr-2" />SLOs</TabsTrigger>
           </TabsList>
+
+          {/* Release Validation Tab */}
+          <TabsContent value="validation" className="space-y-4">
+            <ReleaseValidation />
+          </TabsContent>
 
           {/* Services Tab */}
           <TabsContent value="services" className="space-y-4">
