@@ -79,6 +79,41 @@ export type Database = {
           },
         ]
       }
+      incident_events: {
+        Row: {
+          author_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          incident_id: string
+          message: string
+        }
+        Insert: {
+          author_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          incident_id: string
+          message: string
+        }
+        Update: {
+          author_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          incident_id?: string
+          message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incident_events_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incidents: {
         Row: {
           acknowledged_at: string | null
