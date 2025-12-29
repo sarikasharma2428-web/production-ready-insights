@@ -190,12 +190,16 @@ export type Database = {
           display_name: string
           error_rate: number | null
           id: string
+          last_checked_at: string | null
+          latency_p50: number | null
           latency_p99: number | null
           memory_usage: number | null
           name: string
           request_count: number | null
+          requests_per_second: number | null
           status: string | null
           updated_at: string
+          uptime: number | null
         }
         Insert: {
           cpu_usage?: number | null
@@ -204,12 +208,16 @@ export type Database = {
           display_name: string
           error_rate?: number | null
           id?: string
+          last_checked_at?: string | null
+          latency_p50?: number | null
           latency_p99?: number | null
           memory_usage?: number | null
           name: string
           request_count?: number | null
+          requests_per_second?: number | null
           status?: string | null
           updated_at?: string
+          uptime?: number | null
         }
         Update: {
           cpu_usage?: number | null
@@ -218,12 +226,16 @@ export type Database = {
           display_name?: string
           error_rate?: number | null
           id?: string
+          last_checked_at?: string | null
+          latency_p50?: number | null
           latency_p99?: number | null
           memory_usage?: number | null
           name?: string
           request_count?: number | null
+          requests_per_second?: number | null
           status?: string | null
           updated_at?: string
+          uptime?: number | null
         }
         Relationships: []
       }
