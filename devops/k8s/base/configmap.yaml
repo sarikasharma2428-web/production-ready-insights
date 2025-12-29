@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: sre-dashboard
+data:
+  VITE_SUPABASE_URL: "https://gklmbembffpoicojngzj.supabase.co"
+  VITE_SUPABASE_PROJECT_ID: "gklmbembffpoicojngzj"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: frontend-secrets
+  namespace: sre-dashboard
+type: Opaque
+stringData:
+  VITE_SUPABASE_PUBLISHABLE_KEY: "your-anon-key-here"

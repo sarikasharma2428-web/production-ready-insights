@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: sre-dashboard
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - frontend-deployment.yaml
+  - frontend-service.yaml
+  - ingress.yaml
+  - hpa.yaml
+  - pdb.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: sre-dashboard
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+  - name: sre-dashboard/frontend
+    newTag: latest
