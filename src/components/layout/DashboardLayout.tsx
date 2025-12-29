@@ -16,6 +16,7 @@ import {
   Target,
   FileText,
   User,
+  FlaskConical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -42,6 +43,7 @@ const navItems = [
   { icon: Target, label: "SLOs", path: "/slos" },
   { icon: Activity, label: "Metrics", path: "/metrics" },
   { icon: FileText, label: "Logs", path: "/logs" },
+  { icon: FlaskConical, label: "Test Panel", path: "/test-panel" },
 ];
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
