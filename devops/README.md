@@ -102,8 +102,9 @@ The GitHub Actions workflow (`.github/workflows/ci-cd.yml`) includes:
 4. **Build** - Production build with Vite
 5. **Docker Build** - Multi-stage container build
 6. **Deploy Staging** - Auto-deploy on `develop` branch
-7. **Deploy Production** - Auto-deploy on `main` branch
-8. **Notifications** - Slack notifications for deployment status
+7. **🆕 Test Panel Validation** - Automated release validation gate
+8. **Deploy Production** - Auto-deploy on `main` branch (blocked if validation fails)
+9. **Notifications** - Slack notifications for deployment status
 
 ### Required GitHub Secrets
 
@@ -115,6 +116,170 @@ The GitHub Actions workflow (`.github/workflows/ci-cd.yml`) includes:
 | `KUBE_CONFIG_STAGING` | Base64-encoded kubeconfig for staging |
 | `KUBE_CONFIG_PROD` | Base64-encoded kubeconfig for production |
 | `SLACK_WEBHOOK_URL` | Slack webhook for notifications |
+
+---
+
+## 🆕 Release Validation System
+
+The Test Panel is integrated into the CI/CD pipeline as a **release validation gate**. This ensures production deployments are blocked if critical issues are detected.
+
+### How Staging Validation Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    RELEASE VALIDATION FLOW                      │
+└─────────────────────────────────────────────────────────────────┘
+
+   Push to develop
+         │
+         ▼
+   ┌─────────────┐
+   │   Build &   │
+   │    Test     │
+   └─────────────┘
+         │
+         ▼
+   ┌─────────────┐
+   │  Deploy to  │
+   │   Staging   │
+   └─────────────┘
+         │
+         ▼
+   ┌─────────────────────────────────────────────────────────┐
+   │                TEST PANEL VALIDATION                     │
+   │  ─────────────────────────────────────────────────────   │
+   │  ✓ Services Health    - All services operational        │
+   │  ✓ Critical Alerts    - No critical alerts active       │
+   │  ✓ Open Incidents     - No high-severity incidents      │
+   │  ✓ SLO Health         - All SLOs within targets         │
+   │  ✓ Error Rates        - All services < 5% error rate    │
+   │  ✓ Error Logs         - Error count within threshold    │
+   └─────────────────────────────────────────────────────────┘
+         │
+         ├─── FAILED ──▶ 🚫 Production deployment BLOCKED
+         │
+         ▼ PASSED
+   ┌─────────────┐
+   │  Deploy to  │
+   │ Production  │
+   └─────────────┘
+```
+
+### Validation Checks
+
+| Check | Pass Condition | Failure Condition |
+|-------|----------------|-------------------|
+| **Services Health** | All services healthy or degraded | Any service down |
+| **Critical Alerts** | No active CRITICAL alerts | One or more critical alerts |
+| **Open Incidents** | No HIGH/CRITICAL open incidents | Open high-severity incidents |
+| **SLO Health** | No SLOs breaching targets | SLOs breaching or budgets exhausted |
+| **Error Rates** | All services < 5% error rate | Any service > 5% error rate |
+| **Error Logs** | < 50 error logs in past hour | > 50 error logs (warning only) |
+
+### Using Test Panel Before Production Deploy
+
+1. **Navigate to Test Panel**
+   ```
+   https://your-staging-url.com/test-panel
+   ```
+
+2. **Run Validation**
+   - Click "Run Validation" button
+   - Review all check results
+   - Ensure all checks pass (green)
+
+3. **Fix Issues if Any**
+   - Address critical alerts
+   - Resolve open incidents
+   - Fix services with high error rates
+   - Re-run validation
+
+4. **Deploy to Production**
+   - Once validation passes, production deployment is unblocked
+   - Merge to `main` branch or approve deployment
+
+### Manual Validation via API
+
+```bash
+# Run validation check
+curl -X POST "https://YOUR_PROJECT.supabase.co/functions/v1/release-validation" \
+  -H "Content-Type: application/json" \
+  -H "apikey: YOUR_ANON_KEY" \
+  -d '{"action": "run-validation", "environment": "staging"}'
+
+# Generate test activity
+curl -X POST "https://YOUR_PROJECT.supabase.co/functions/v1/release-validation" \
+  -H "Content-Type: application/json" \
+  -H "apikey: YOUR_ANON_KEY" \
+  -d '{"action": "generate-test-activity"}'
+```
+
+### Pipeline Output Example
+
+```
+═══════════════════════════════════════════
+       RELEASE VALIDATION SUMMARY
+═══════════════════════════════════════════
+Environment: staging
+Total Checks: 6
+✅ Passed: 6
+❌ Failed: 0
+⚠️  Warnings: 0
+═══════════════════════════════════════════
+
+📋 Detailed Check Results:
+[PASSED] Services Health: All 5 services are operational
+[PASSED] Critical Alerts: No critical alerts active
+[PASSED] Open Incidents: No high-severity incidents open
+[PASSED] SLO Health: All 4 SLOs within targets
+[PASSED] Error Rates: All services within acceptable error rates
+[PASSED] Error Logs: Error log count within threshold (12/50)
+
+✅ VALIDATION PASSED - Ready for production deployment
+```
+
+### How to Rollback on Failure
+
+#### Option 1: Kubernetes Rollback
+```bash
+# View deployment history
+kubectl rollout history deployment/prod-frontend -n sre-dashboard
+
+# Rollback to previous version
+kubectl rollout undo deployment/prod-frontend -n sre-dashboard
+
+# Rollback to specific revision
+kubectl rollout undo deployment/prod-frontend -n sre-dashboard --to-revision=2
+```
+
+#### Option 2: Redeploy Previous Image
+```bash
+# Find previous image tag
+kubectl describe deployment prod-frontend -n sre-dashboard | grep Image
+
+# Update to previous image
+kubectl set image deployment/prod-frontend \
+  frontend=ghcr.io/your-repo/sre-dashboard:previous-sha \
+  -n sre-dashboard
+```
+
+#### Option 3: Revert Git Commit
+```bash
+# Revert the problematic commit
+git revert HEAD
+
+# Push to trigger new deployment
+git push origin main
+```
+
+### Validation Report Storage
+
+- **Location**: GitHub Actions Artifacts
+- **Retention**: 30 days
+- **Format**: JSON with full check details
+- **Naming**: `validation-report-{environment}/staging-validation-{commit-sha}.json`
+
+---
 
 ## Monitoring
 
@@ -192,6 +357,15 @@ kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller
 curl http://localhost:9090/api/v1/targets
 ```
 
+**Validation failing in pipeline:**
+```bash
+# Check validation logs
+gh run view <run-id> --job "Test Panel Validation"
+
+# Download validation report
+gh run download <run-id> -n validation-report-staging
+```
+
 ## Contributing
 
 1. Create a feature branch
@@ -200,4 +374,5 @@ curl http://localhost:9090/api/v1/targets
 4. Submit PR to `develop`
 5. After approval, merge to `develop`
 6. Test in staging
-7. Merge to `main` for production
+7. **Run Test Panel validation**
+8. Merge to `main` for production
