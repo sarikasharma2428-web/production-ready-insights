@@ -24,14 +24,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, RefreshCw, Server, Trash2, Loader2 } from "lucide-react";
+import { Plus, RefreshCw, Server, Trash2, Loader2, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
 import { serviceSchema } from "@/lib/validations";
 
 export default function ServicesPage() {
-  const { services, loading, addService, deleteService, refetch } = useServices();
+  const { services, loading, addService, updateService, deleteService, refetch } = useServices();
   const { canCreate, canDelete, loading: roleLoading } = useUserRole();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; name: string }>({
     open: false,
@@ -46,6 +48,20 @@ export default function ServicesPage() {
     description: "",
     status: "healthy",
   });
+  const [editService, setEditService] = useState<{
+    id: string;
+    name: string;
+    display_name: string;
+    description: string;
+    status: string;
+    uptime: number;
+    cpu_usage: number;
+    memory_usage: number;
+    error_rate: number;
+    latency_p50: number;
+    latency_p99: number;
+    requests_per_second: number;
+  } | null>(null);
 
   const validateForm = (): boolean => {
     setErrors({});
@@ -103,6 +119,50 @@ export default function ServicesPage() {
 
   const openDeleteConfirm = (id: string, name: string) => {
     setDeleteConfirm({ open: true, id, name });
+  };
+
+  const openEditDialog = (service: typeof services[0]) => {
+    setEditService({
+      id: service.id,
+      name: service.name,
+      display_name: service.display_name,
+      description: service.description || "",
+      status: service.status || "healthy",
+      uptime: Number(service.uptime) || 99.9,
+      cpu_usage: Number(service.cpu_usage) || 0,
+      memory_usage: Number(service.memory_usage) || 0,
+      error_rate: Number(service.error_rate) || 0,
+      latency_p50: service.latency_p50 || 0,
+      latency_p99: service.latency_p99 || 0,
+      requests_per_second: service.requests_per_second || 0,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateService = async () => {
+    if (!editService) return;
+    setIsSubmitting(true);
+    try {
+      await updateService(editService.id, {
+        display_name: editService.display_name,
+        description: editService.description || null,
+        status: editService.status,
+        uptime: editService.uptime,
+        cpu_usage: editService.cpu_usage,
+        memory_usage: editService.memory_usage,
+        error_rate: editService.error_rate,
+        latency_p50: editService.latency_p50,
+        latency_p99: editService.latency_p99,
+        requests_per_second: editService.requests_per_second,
+      });
+      toast.success("Service updated successfully");
+      setIsEditDialogOpen(false);
+      setEditService(null);
+    } catch (error) {
+      toast.error("Failed to update service");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const healthyCount = services.filter((s) => s.status === "healthy").length;
@@ -287,21 +347,192 @@ export default function ServicesPage() {
                   memoryUsage={Number(service.memory_usage) || 0}
                   requestsPerSecond={service.requests_per_second || 0}
                 />
-                {canDelete && (
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                   <Button
-                    variant="destructive"
+                    variant="secondary"
                     size="icon"
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
-                    onClick={() => openDeleteConfirm(service.id, service.display_name)}
+                    className="h-8 w-8"
+                    onClick={() => openEditDialog(service)}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Pencil className="h-4 w-4" />
                   </Button>
-                )}
+                  {canDelete && (
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => openDeleteConfirm(service.id, service.display_name)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Edit Service Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Service</DialogTitle>
+            <DialogDescription>
+              Update service details and metrics
+            </DialogDescription>
+          </DialogHeader>
+          {editService && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-name">Service ID</Label>
+                  <Input id="edit-name" value={editService.name} disabled className="bg-muted" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-display-name">Display Name</Label>
+                  <Input
+                    id="edit-display-name"
+                    value={editService.display_name}
+                    onChange={(e) => setEditService({ ...editService, display_name: e.target.value })}
+                  />
+                </div>
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editService.description}
+                  onChange={(e) => setEditService({ ...editService, description: e.target.value })}
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-status">Status</Label>
+                  <Select
+                    value={editService.status}
+                    onValueChange={(value) => setEditService({ ...editService, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="healthy">Healthy</SelectItem>
+                      <SelectItem value="degraded">Degraded</SelectItem>
+                      <SelectItem value="down">Down</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-uptime">Uptime (%)</Label>
+                  <Input
+                    id="edit-uptime"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={editService.uptime}
+                    onChange={(e) => setEditService({ ...editService, uptime: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-cpu">CPU Usage (%)</Label>
+                  <Input
+                    id="edit-cpu"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={editService.cpu_usage}
+                    onChange={(e) => setEditService({ ...editService, cpu_usage: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-memory">Memory Usage (%)</Label>
+                  <Input
+                    id="edit-memory"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={editService.memory_usage}
+                    onChange={(e) => setEditService({ ...editService, memory_usage: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-error-rate">Error Rate (%)</Label>
+                  <Input
+                    id="edit-error-rate"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={editService.error_rate}
+                    onChange={(e) => setEditService({ ...editService, error_rate: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-rps">Requests/Second</Label>
+                  <Input
+                    id="edit-rps"
+                    type="number"
+                    min="0"
+                    value={editService.requests_per_second}
+                    onChange={(e) => setEditService({ ...editService, requests_per_second: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-p50">Latency P50 (ms)</Label>
+                  <Input
+                    id="edit-p50"
+                    type="number"
+                    min="0"
+                    value={editService.latency_p50}
+                    onChange={(e) => setEditService({ ...editService, latency_p50: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-p99">Latency P99 (ms)</Label>
+                  <Input
+                    id="edit-p99"
+                    type="number"
+                    min="0"
+                    value={editService.latency_p99}
+                    onChange={(e) => setEditService({ ...editService, latency_p99: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateService} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={deleteConfirm.open}
